@@ -14,7 +14,7 @@ mv wp-config-sample.php wp-config.php
 sed -i 's/database_name_here/wordpress/g' wp-config.php
 sed -i 's/username_here/admin/g' wp-config.php
 sed -i 's/password_here/wordpress/g' wp-config.php
-sed -i "s/localhost/$IP_PUBLIC_BD/g" wp-config.php
+sed -i "s/localhost/$IP_PRIVATE_BD/g" wp-config.php
 
 systemctl restart apache2.service
 rm -rf /var/www/html/index.html
