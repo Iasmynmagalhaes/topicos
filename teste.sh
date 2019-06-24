@@ -1,213 +1,101 @@
-{
-	"AWSTemplateFormatVersion": "2010-09-09",
-	"Description": "Criacao de três servidores: Banco de dados, Servidor Web e Bastion",
-	"Parameters": {
-		"FaixaIPVPC": {
-			"Description": "Faixa IP Utilizada no VPC",
-			"Type": "String",
-			"Default": "10.0.0.0/16",
-         "AllowedValues": ["10.0.0.0/16", "172.16.0.0/16", "192.168.0.0/16"]
-		},
-		"FaixaIPSubrede": {
-			"Description": "Faixa IP Utilizada na Subrede",
-			"Type": "String",
-			"Default": "10.0.10.0/24",
-         "AllowedValues": ["10.0.10.0/24", "172.16.10.0/24", "192.168.10.0/24"]
-		},
-      "ZonaSubrede": {
-         "Description": "Zona da Subrede",
-         "Type": "Number",
-         "Default": 1
-      },
-		"KeyName": {
-			"Description": "Nome do par de chaves",
-			"Type": "AWS::EC2::KeyPair::KeyName",
-			"Default": "mykey"
-		},
-	   "InstanceType": {
-			"Description": "Tipo de instancia",
-			"Type": "String",
-			"Default": "t2.micro",
-			"AllowedValues": ["t2.micro", "t2.small", "t2.medium"]
-		},
-      "ImageId": {
-         "Description": "Identificador da Imagem",
-         "Type": "String",
-         "Default": "ami-024a64a6685d05041"
-      }
-   },
-	"Resources": {
-		"NovoVPC": {
-			"Type": "AWS::EC2::VPC",
-			"Properties": {
-            "CidrBlock": {"Ref": "FaixaIPVPC"},
-            "Tags": [{"Key": "Name", "Value": "NovoVPC"}]
-			}
-		},
-      "NovaSubrede": {
-         "Type": "AWS::EC2::Subnet",
-         "Properties": {
-            "VpcId": {"Ref": "NovoVPC"},
-            "CidrBlock": {"Ref": "FaixaIPSubrede"},
-            "AvailabilityZone": {
-               "Fn::Select" : [
-                  {"Ref": "ZonaSubrede"},
-                  {
-                     "Fn::GetAZs": ""
-                  }
-               ]
-            } 
-         }
-      },
-      "RoteadorInternet":{
-         "Type": "AWS::EC2::InternetGateway"
-      },
-      "LigacaoRoteadorVPC": {
-         "Type": "AWS::EC2::VPCGatewayAttachment",
-         "Properties": {
-            "InternetGatewayId": {"Ref": "RoteadorInternet"},
-            "VpcId": {"Ref": "NovoVPC"}
-         }
-      },
-      "TabelaRoteamento": {
-         "Type": "AWS::EC2::RouteTable",
-         "Properties": {
-            "VpcId": {"Ref": "NovoVPC"}
-         }
-      },
-      "EntradaTabelaRoteamento": {
-         "Type": "AWS::EC2::Route",
-         "Properties": {
-            "GatewayId": {"Ref": "RoteadorInternet"},
-            "DestinationCidrBlock" : "0.0.0.0/0",
-            "RouteTableId": {"Ref": "TabelaRoteamento"}
-         }
-      },
-      "LigacaoTabelaSubRede": {
-         "Type": "AWS::EC2::SubnetRouteTableAssociation",
-         "Properties": {
-            "SubnetId": {"Ref": "NovaSubrede"},
-            "RouteTableId": {"Ref": "TabelaRoteamento"}
-         }
-      },
-		"GrupoDeSegurancaBastion": {
-			"Type": "AWS::EC2::SecurityGroup",
-			"Properties": {
-				"GroupDescription": "GrupoDeSegurancaBastion",
-				"VpcId": {"Ref": "NovoVPC"},
-				"SecurityGroupIngress": [{
-					"CidrIp": "0.0.0.0/0",
-					"FromPort":22,
-					"IpProtocol": "tcp",
-					"ToPort": 22
-				}]
-			}
-		},
-      "GrupoDeSegurancaWeb": {
-         "Type": "AWS::EC2::SecurityGroup",
-         "Properties": {
-            "GroupDescription": "GrupoDeSegurancaWeb",
-            "VpcId": {"Ref": "NovoVPC"},
-            "SecurityGroupIngress": [{
-               "CidrIp": "0.0.0.0/0",
-               "FromPort": 80,
-               "IpProtocol": "tcp",
-               "ToPort": 80
-            }, {
-               "FromPort": 22,
-               "IpProtocol": "tcp",
-               "ToPort": 22,
-               "SourceSecurityGroupId" : {
-                  "Ref" : "GrupoDeSegurancaBastion"
-               }
-            }]
-         }
-      },
-      "GrupoDeSegurancaBancoDeDados": {
-         "Type": "AWS::EC2::SecurityGroup",
-         "Properties": {
-            "GroupDescription": "Grupo de Seguranca para um Banco de Dados",
-            "VpcId": {"Ref": "NovoVPC"},
-            "SecurityGroupIngress": [{
-               "FromPort": 3306,
-               "IpProtocol": "tcp",
-               "ToPort": 3306,
-               "SourceSecurityGroupId" : {
-                  "Ref" : "GrupoDeSegurancaWeb"
-               }
-            },{
-               "FromPort": 22,
-               "IpProtocol": "tcp",
-               "ToPort": 22,
-               "SourceSecurityGroupId" : {
-                  "Ref" : "GrupoDeSegurancaBastion"
-               }
-            }]
-         }
-      },
-      "ServidorBancodeDados": {
-         "Type": "AWS::EC2::Instance",
-         "Properties": {
-            "ImageId": {"Ref":"ImageId"},
-            "InstanceType": {"Ref": "InstanceType"},
-            "KeyName": {"Ref": "KeyName"},
-            "NetworkInterfaces": [{
-               "AssociatePublicIpAddress": "true",
-               "DeleteOnTermination": "true",
-               "SubnetId": {"Ref": "NovaSubrede"},
-               "DeviceIndex": "0",
-               "GroupSet": [{"Ref": "GrupoDeSegurancaBancoDeDados"}]
-               }],
-            "UserData": {"Fn::Base64": { "Fn::Join": ["", [
-            "#!/bin/bash -ex \n",
-            "curl -s https://raw.githubusercontent.com/Iasmynmagalhaes/topicos/master/banco.sh | bash -ex\n"
-            ]]}}
-         }
-      },
-		"ServidorWeb": {
-         "Type": "AWS::EC2::Instance",
-         "Properties": {
-            "ImageId": {"Ref":"ImageId"},
-            "InstanceType": {"Ref": "InstanceType"},
-            "KeyName": {"Ref": "KeyName"},
-         "NetworkInterfaces": [{
-               "AssociatePublicIpAddress": "true",
-               "DeleteOnTermination": "true",
-               "SubnetId": {"Ref": "NovaSubrede"},
-               "DeviceIndex": "0",
-               "GroupSet": [{"Ref": "GrupoDeSegurancaWeb"}]
-            }],   
-            "UserData": {"Fn::Base64": { "Fn::Join": ["", [
-               "#!/bin/bash -ex \n",
-               "export IP_PRIVATE_BD=", {"Fn::GetAtt": ["ServidorBancodeDados", "PrivateIp"]}, "\n",
-               "curl -s https://raw.githubusercontent.com/Iasmynmagalhaes/topicos/master/web.sh | bash -ex\n"
-            ]]}}
-         }
-      },
-      "ServidorBastion": {
-         "Type": "AWS::EC2::Instance",
-         "Properties": {
-            "ImageId": {"Ref":"ImageId"},
-            "InstanceType": {"Ref": "InstanceType"},
-            "KeyName": {"Ref": "KeyName"},
-            "NetworkInterfaces": [{
-               "AssociatePublicIpAddress": "true",
-               "DeleteOnTermination": "true",
-               "SubnetId": {"Ref": "NovaSubrede"},
-               "DeviceIndex": "0",
-               "GroupSet": [{"Ref": "GrupoDeSegurancaBastion"}]
-            }]
-         }
-      }
-	},
-	"Outputs": {
-		"EnderecoPublico": {
-			"Value": {"Fn::GetAtt": ["ServidorBastion", "PublicIp"]},
-			"Description": "Endereco para acessar o servidor"
-		},
-      "EnderecoPrivado": {
-         "Value": {"Fn::GetAtt": ["ServidorWeb", "PrivateIp"]},
-         "Description": "Endereco interno do servidor"
-      }
-	}
-}
+#!/bin/bash
+
+usuario="${USER}"
+senha="${PASS}"
+#atualizando e instalando
+sudo apt -y update
+sudo apt -y install php-curl php-gd php-mbstring php-xml php-xmlrpc apache2 php libapache2-mod-php php-mysql
+#modificações no apache
+sudo sed -i "s/Options Indexes FollowSymLinks/Options FollowSymLinks/" /etc/apache2/apache2.conf
+sudo a2dissite 000-default.conf
+sudo systemctl stop apache2.service
+sudo systemctl start apache2.service
+sudo systemctl enable apache2.service
+#instalando o wordpress
+wget https://wordpress.org/latest.tar.gz
+tar -zxvf latest.tar.gz
+sudo mv wordpress /var/www/html/wordpress
+sudo chown -R www-data:www-data /var/www/html/wordpress/
+sudo chmod -R 755 /var/www/html/wordpress/
+cat <<EOF > /etc/apache2/sites-available/wordpress.conf
+<VirtualHost *:80>
+   ServerAdmin admin@example.com
+   DocumentRoot /var/www/html/wordpress/
+   ServerName example.com
+   ServerAlias www.example.com
+   <Directory /var/www/html/wordpress/> 
+        Options +FollowSymlinks
+        AllowOverride All
+        Require all granted
+   </Directory>
+   ErrorLog ${APACHE_LOG_DIR}/error.log
+   CustomLog ${APACHE_LOG_DIR}/access.log combined 
+</VirtualHost>
+EOF
+sudo a2ensite wordpress.conf
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+#Configurando o banco do wordpress
+sudo mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/database_name_here/wordpress/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/username_here/wp_admin/g" /var/www/html/wordpress/wp-config.php 
+sudo sed -i "s/password_here/root/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/localhost/$ip_banco/g" /var/www/html/wordpress/wp-config.php#!/bin/bash
+#atualizando e instalando
+sudo apt -y update
+sudo apt -y install php-curl php-gd php-mbstring php-xml php-xmlrpc apache2 php libapache2-mod-php php-mysql
+#modificações no apache
+sudo sed -i "s/Options Indexes FollowSymLinks/Options FollowSymLinks/" /etc/apache2/apache2.conf
+sudo a2dissite 000-default.conf
+sudo systemctl stop apache2.service
+sudo systemctl start apache2.service
+sudo systemctl enable apache2.service
+#instalando o wordpress
+wget https://wordpress.org/latest.tar.gz
+tar -zxvf latest.tar.gz
+sudo mv wordpress /var/www/html/wordpress
+sudo chown -R www-data:www-data /var/www/html/wordpress/
+sudo chmod -R 755 /var/www/html/wordpress/
+sudo a2ensite wordpress.conf
+sudo a2enmod rewrite
+sudo systemctl restart apache2
+#Configurando o banco do wordpress
+sudo mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/database_name_here/wordpress/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/username_here/wp_admin/g" /var/www/html/wordpress/wp-config.php 
+sudo sed -i "s/password_here/root/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/localhost/$ip_banco/g" /var/www/html/wordpress/wp-config.php
+
+## ALTERANDO A LINGUAGEM DO WORDPRESS PARA PORTUGUES BRASILEIRO
+
+sudo sed -i "s/\$language = ''/\$language = 'pt_BR'/" /var/www/html/wordpress/wp-admin/install.php
+sudo echo "define('WPLANG', 'pt_BR');" >> /var/www/html/wordpress/wp-config.php
+wget https://github.com/denyspmaciel/Topicos-Avancados/raw/master/languages.tar.gz
+tar -zxf languages.tar.gz
+rm languages.tar.gz
+sudo mv languages /var/www/html/wordpress/wp-content/languages
+
+## ALTERANDO A VARIAVEL STEP PARA PASSAR IR PARA A TELA DE LOGIN
+
+n=`grep -n '$step =' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d :`
+sed -i ""$n"s/: 0;/: 2;/" /var/www/html/wordpress/wp-admin/install.php
+
+## ALTERANDO AS CONFIGURACOES DO USUÁRIOS DE ACORDO COM OS PARAMETROS ESCOLHIDOS
+
+aux=`grep -n '$weblog_title[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d ":"`
+n=`echo $aux | cut -f 2 -d " "`
+sed -i ""$n"s/: '';/: 'SiteDenys';/" /var/www/html/wordpress/wp-admin/install.php
+
+aux=`grep -n '$user_name[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d ":"`
+n=`echo $aux | cut -f 2 -d " "`
+sed -i ""$n"s/: '';/: '"$usuario"';/" /var/www/html/wordpress/wp-admin/install.php
+
+n=`grep -n '$admin_password[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d :`
+sed -i ""$n"s/: '';/: '"$senha"';/" /var/www/html/wordpress/wp-admin/install.php
+
+n=`grep -n '$admin_password_check[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d :`
+sed -i ""$n"s/: '';/: '"$senha"';/" /var/www/html/wordpress/wp-admin/install.php
+
+aux=`grep -n '$admin_email[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d ":"`
+n=`echo $aux | cut -f 2 -d " "`
+sed -i ""$n"s/: '';/: 'admin@email.com';/" /var/www/html/wordpress/wp-admin/install.php
