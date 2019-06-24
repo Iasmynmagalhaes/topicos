@@ -57,16 +57,6 @@ sudo mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-
 sudo sed -i "s/database_name_here/wordpress/g" /var/www/html/wordpress/wp-config.php
 sudo sed -i "s/username_here/wp_admin/g" /var/www/html/wordpress/wp-config.php 
 sudo sed -i "s/password_here/root/g" /var/www/html/wordpress/wp-config.php
-sudo sed -i "s/localhost/$ip_banco/g" /var/www/html/wordpress/wp-config.php#!/bin/bash
-
-
-#CONFIGURANDO BD DO WORDPRESS
-
-sudo mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
-
-sudo sed -i "s/database_name_here/wordpress/g" /var/www/html/wordpress/wp-config.php
-sudo sed -i "s/username_here/wp_admin/g" /var/www/html/wordpress/wp-config.php 
-sudo sed -i "s/password_here/root/g" /var/www/html/wordpress/wp-config.php
 sudo sed -i "s/localhost/$ip_banco/g" /var/www/html/wordpress/wp-config.php
 
 ## ALTERANDO A LINGUAGEM DO WORDPRESS PARA PORTUGUES BRASILEIRO
