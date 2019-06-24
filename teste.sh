@@ -84,7 +84,7 @@ sed -i ""$n"s/: 0;/: 2;/" /var/www/html/wordpress/wp-admin/install.php
 
 aux=`grep -n '$weblog_title[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d ":"`
 n=`echo $aux | cut -f 2 -d " "`
-sed -i ""$n"s/: '';/: 'SiteDenys';/" /var/www/html/wordpress/wp-admin/install.php
+sed -i ""$n"s/: '';/: 'Teste';/" /var/www/html/wordpress/wp-admin/install.php
 
 aux=`grep -n '$user_name[[:blank:]]*=' /var/www/html/wordpress/wp-admin/install.php | cut -f 1 -d ":"`
 n=`echo $aux | cut -f 2 -d " "`
