@@ -1,7 +1,4 @@
 #!/bin/bash
-
-#Esse script necessecita do IP do banco de dados
-#O mesmo deve ser exportado com no IPBD
 ip_banco="${IPBD}"
 usuario="${USER}"
 senha="${PASS}"
@@ -49,6 +46,16 @@ EOF
 sudo a2ensite wordpress.conf
 sudo a2enmod rewrite
 sudo systemctl restart apache2
+
+#CONFIGURANDO BD DO WORDPRESS
+
+sudo mv /var/www/html/wordpress/wp-config-sample.php /var/www/html/wordpress/wp-config.php
+
+sudo sed -i "s/database_name_here/wordpress/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/username_here/wp_admin/g" /var/www/html/wordpress/wp-config.php 
+sudo sed -i "s/password_here/root/g" /var/www/html/wordpress/wp-config.php
+sudo sed -i "s/localhost/$ip_banco/g" /var/www/html/wordpress/wp-config.php#!/bin/bash
+
 
 #CONFIGURANDO BD DO WORDPRESS
 
